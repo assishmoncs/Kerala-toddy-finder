@@ -378,10 +378,10 @@ class ShopReviewView(APIView):
                 status=400,
                 is_success=False,
             )
-        published = get_object_or_404(Status, name="Published")
+        pending = get_object_or_404(Status, name="Pending")
         serializer = ShopReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(shop=shop, user=request.user, status=published)
+        serializer.save(shop=shop, user=request.user, status=pending)
         return APIResponse(data=serializer.data, message="Review submitted.", status=201)
 
 
