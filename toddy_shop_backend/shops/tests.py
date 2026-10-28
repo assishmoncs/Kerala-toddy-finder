@@ -139,3 +139,44 @@ class ShopReviewModerationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["data"]), 1)
         self.assertEqual(response.data["data"][0]["id"], review.id)
+
+    def test_pending_review_detail_access_restricted_to_author_and_admin(self):
+        review = ShopReview.objects.create(
+            shop=self.shop,
+            user=self.customer,
+            category=self.review_category,
+            title="Pending Review Detail",
+            body="Review detail waiting for moderation.",
+            status=self.pending_status,
+        )
+        detail_url = f"/api/v1/shops/{self.shop.id}/reviews/{review.id}/"
+
+        # Another authenticated user cannot retrieve pending review detail
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["status"], "error")
+
+        # Review author can retrieve pending review detail
+        self.client.force_authenticate(user=self.customer)
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["id"], review.id)
+        self.assertEqual(response.data["data"]["status_detail"]["name"], "Pending")
+
+        # Admin can retrieve pending review detail
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["id"], review.id)
+        self.assertEqual(response.data["data"]["status_detail"]["name"], "Pending")
+
+        # Once approved, other authenticated user can retrieve review detail
+        review.status = self.published_status
+        review.save()
+
+        self.client.force_authenticate(user=self.other_user)
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["id"], review.id)
+        self.assertEqual(response.data["data"]["status_detail"]["name"], "Published")

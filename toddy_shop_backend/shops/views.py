@@ -404,6 +404,13 @@ class ShopReviewDetailView(APIView):
 
     def get(self, request, shop_pk, pk):
         review = self._get_review(shop_pk, pk)
+        if review.status.name != "Published" and review.user != request.user and not request.user.is_admin:
+            return APIResponse(
+                data=None,
+                message="You do not have permission to view this review.",
+                status=403,
+                is_success=False,
+            )
         return APIResponse(
             data=ShopReviewSerializer(review).data,
             message="Review retrieved.",
