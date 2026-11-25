@@ -44,6 +44,13 @@ class ShopLicenseSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {"license_type": {"write_only": True}}
 
+    def validate(self, attrs):
+        issued_date = attrs.get("issued_date", getattr(self.instance, "issued_date", None))
+        expiry_date = attrs.get("expiry_date", getattr(self.instance, "expiry_date", None))
+        if issued_date and expiry_date and expiry_date < issued_date:
+            raise serializers.ValidationError({"expiry_date": "Expiry date must be on or after the issued date."})
+        return attrs
+
 
 class ShopFoodItemSerializer(serializers.ModelSerializer):
     food_item_name = serializers.CharField(source="food_item.name", read_only=True)
@@ -59,6 +66,11 @@ class ShopFoodItemSerializer(serializers.ModelSerializer):
             "price",
             "is_available",
         ]
+
+    def validate_price(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Price cannot be negative.")
+        return value
 
 
 class ShopMediaSerializer(serializers.ModelSerializer):
@@ -135,7 +147,7 @@ class ToddyShopListSerializer(serializers.ModelSerializer):
     category = ShopCategorySerializer(read_only=True)
     status = StatusSerializer(read_only=True)
     avg_rating = serializers.SerializerMethodField()
-    review_count = serializers.IntegerField(source="reviews.count", read_only=True)
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = ToddyShop
@@ -151,9 +163,18 @@ class ToddyShopListSerializer(serializers.ModelSerializer):
         ]
 
     def get_avg_rating(self, obj):
+        annotated = getattr(obj, "annotated_avg_rating", None)
+        if annotated is not None:
+            return round(annotated, 1)
         result = obj.ratings.aggregate(avg=Avg("score"))
         avg = result.get("avg")
         return round(avg, 1) if avg is not None else None
+
+    def get_review_count(self, obj):
+        annotated = getattr(obj, "published_review_count", None)
+        if annotated is not None:
+            return annotated
+        return obj.reviews.filter(status__name="Published").count()
 
 
 class FavoriteShopSerializer(serializers.ModelSerializer):
@@ -177,7 +198,7 @@ class ToddyShopDetailSerializer(serializers.ModelSerializer):
     media = ShopMediaSerializer(many=True, read_only=True)
     avg_rating = serializers.SerializerMethodField()
     ratings_breakdown = serializers.SerializerMethodField()
-    review_count = serializers.IntegerField(source="reviews.count", read_only=True)
+    review_count = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
 
     class Meta:
@@ -208,6 +229,9 @@ class ToddyShopDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_avg_rating(self, obj):
+        annotated = getattr(obj, "annotated_avg_rating", None)
+        if annotated is not None:
+            return round(annotated, 1)
         result = obj.ratings.aggregate(avg=Avg("score"))
         avg = result.get("avg")
         return round(avg, 1) if avg is not None else None
@@ -215,6 +239,12 @@ class ToddyShopDetailSerializer(serializers.ModelSerializer):
     def get_ratings_breakdown(self, obj):
         rows = obj.ratings.values("rating_type__name").annotate(avg=Avg("score"))
         return {r["rating_type__name"]: round(r["avg"], 1) for r in rows}
+
+    def get_review_count(self, obj):
+        annotated = getattr(obj, "published_review_count", None)
+        if annotated is not None:
+            return annotated
+        return obj.reviews.filter(status__name="Published").count()
 
     def get_is_favorited(self, obj):
         request = self.context.get("request")

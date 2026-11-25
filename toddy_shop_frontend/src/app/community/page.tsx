@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
     HERITAGE_STORIES,
     DISH_GALLERY,
@@ -16,7 +17,7 @@ export const metadata = {
 export default function CommunityPage() {
     return (
         <div className="bg-cream">
-            <main className="max-w-7xl mx-auto px-8 pb-10">
+            <div className="max-w-7xl mx-auto px-8 pb-10">
                 {/* Hero Section */}
                 <section className="py-20 border-b border-outline-variant flex flex-col md:flex-row items-center gap-12">
                     <div className="flex-1 space-y-4">
@@ -36,9 +37,12 @@ export default function CommunityPage() {
                             heart of our culture.
                         </p>
                         <div className="pt-4">
-                            <button className="bg-primary-container text-white px-8 py-3 text-[13px] font-bold tracking-wider rounded-lg active:scale-95 transition-transform cursor-pointer">
+                            <Link
+                                href="/explore"
+                                className="inline-block bg-primary-container text-white px-8 py-3 text-[13px] font-bold tracking-wider rounded-lg active:scale-95 transition-transform cursor-pointer"
+                            >
                                 EXPLORE DISCOVERIES
-                            </button>
+                            </Link>
                         </div>
                     </div>
                     <div className="flex-1 w-full aspect-[4/3] overflow-hidden rounded-xl relative group">
@@ -69,7 +73,7 @@ export default function CommunityPage() {
                                 {SIDEBAR_NAV.map((item) => (
                                     <a
                                         key={item.label}
-                                        href="#"
+                                        href="#heritage-stories"
                                         className={`flex items-center gap-3 p-3 font-[family-name:var(--font-heading)] text-sm cursor-pointer ${
                                             item.active
                                                 ? "text-primary font-bold bg-primary-container/5 border-l-4 border-primary-container"
@@ -128,17 +132,20 @@ export default function CommunityPage() {
                     {/* Main Content */}
                     <div className="lg:col-span-9 space-y-10">
                         {/* Heritage Stories */}
-                        <section>
+                        <section id="heritage-stories">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="font-[family-name:var(--font-heading)] text-4xl font-semibold text-primary">
                                     Heritage Stories
                                 </h2>
-                                <button className="text-secondary text-[13px] font-bold tracking-wider flex items-center gap-1 hover:underline cursor-pointer">
+                                <Link
+                                    href="/explore"
+                                    className="text-secondary text-[13px] font-bold tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
+                                >
                                     VIEW ALL
                                     <span className="material-symbols-outlined text-sm">
                                         arrow_forward
                                     </span>
-                                </button>
+                                </Link>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {HERITAGE_STORIES.map((story) => (
@@ -268,19 +275,25 @@ export default function CommunityPage() {
                                     help us preserve the soul of the backwaters.
                                 </p>
                                 <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                                    <button className="bg-white text-primary text-[13px] font-bold tracking-wider px-8 py-3 rounded-lg hover:shadow-lg transition-shadow cursor-pointer">
+                                    <Link
+                                        href="/explore"
+                                        className="bg-white text-primary text-[13px] font-bold tracking-wider px-8 py-3 rounded-lg hover:shadow-lg transition-shadow cursor-pointer"
+                                    >
                                         REGISTER AS MEMBER
-                                    </button>
-                                    <button className="border border-white/30 text-white text-[13px] font-bold tracking-wider px-8 py-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
+                                    </Link>
+                                    <Link
+                                        href="/#districts"
+                                        className="border border-white/30 text-white text-[13px] font-bold tracking-wider px-8 py-3 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                                    >
                                         LEARN OUR MISSION
-                                    </button>
+                                    </Link>
                                 </div>
                             </div>
                             <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-secondary-container/30 to-transparent" />
                         </section>
                     </div>
                 </div>
-            </main>
+            </div>
 
             {/* Leaf motif divider */}
             <div className="flex justify-center items-center py-10 text-primary opacity-20">

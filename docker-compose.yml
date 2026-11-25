@@ -20,6 +20,11 @@ services:
       context: ./toddy_shop_backend
     container_name: toddy_finder_backend
     command: uv run python manage.py runserver 0.0.0.0:8000
+    environment:
+      DEBUG: "True"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
+      DATABASE_URL: "postgis://postgres:toddyfinder@db:5432/toddy_finder"
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000"
     volumes:
       - ./toddy_shop_backend:/app
     ports:

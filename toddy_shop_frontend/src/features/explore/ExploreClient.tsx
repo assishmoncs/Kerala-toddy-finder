@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
     Search,
     SlidersHorizontal,
@@ -23,17 +25,40 @@ import {
     Baby,
     ShowerHead,
     Wifi,
+    Check,
 } from "lucide-react";
 import Image from "next/image";
 
+interface ExploreShop {
+    id: number;
+    slug?: string;
+    name: string;
+    malayalamName: string;
+    locationName: string;
+    position: [number, number];
+    description: string;
+    rating: number;
+    reviewsCount: number;
+    specialty: string;
+    image: string;
+    tsNumber: string;
+    priceRange: string;
+    hours: string;
+    phone: string;
+    website: string;
+    amenities: string[];
+    accessibility: string[];
+}
+
 // Rich data representing toddy shops
-const initialToddyShops = [
+const initialToddyShops: ExploreShop[] = [
     {
         id: 1,
+        slug: "mullapanthal",
         name: "Mullapanthal Toddy Shop",
         malayalamName: "മുള്ളപ്പന്തൽ കള്ള് ഷാപ്പ്",
         locationName: "Tripunithura, Kochi",
-        position: [9.9351, 76.3533] as [number, number],
+        position: [9.9351, 76.3533],
         description:
             "Famous for its spicy duck curry, beef roast, and pure coconut toddy under the palms.",
         rating: 4.7,
@@ -58,7 +83,7 @@ const initialToddyShops = [
         name: "Kadamakkudy Toddy Shop",
         malayalamName: "കടമക്കുടി കള്ള് ഷാപ്പ്",
         locationName: "Kadamakkudy Islands, Kochi",
-        position: [10.0528, 76.2482] as [number, number],
+        position: [10.0528, 76.2482],
         description:
             "Located amidst scenic backwaters. Perfect sunsets, fresh toddy, and delicious local food.",
         rating: 4.8,
@@ -75,10 +100,11 @@ const initialToddyShops = [
     },
     {
         id: 3,
+        slug: "puzhayoram",
         name: "Nettoor Toddy Shop",
         malayalamName: "നെട്ടൂർ കള്ള് ഷാപ്പ്",
         locationName: "Nettoor, Ernakulam",
-        position: [9.9248, 76.315] as [number, number],
+        position: [9.9248, 76.315],
         description:
             "Traditional lakeside toddy shop serving fiery local delicacies and fresh fish curries.",
         rating: 4.4,
@@ -95,10 +121,11 @@ const initialToddyShops = [
     },
     {
         id: 4,
+        slug: "karimpumkala",
         name: "Karimpumkala Toddy Shop",
         malayalamName: "കരിമ്പുംകാല കള്ള് ഷാപ്പ്",
         locationName: "Pallom, Kottayam",
-        position: [9.5524, 76.5412] as [number, number],
+        position: [9.5524, 76.5412],
         description:
             "Legendary culinary spot since 1952. Outstanding food and premium toddy varieties.",
         rating: 4.9,
@@ -120,12 +147,13 @@ const initialToddyShops = [
     },
     {
         id: 5,
+        slug: "kiliroor",
         name: "Heritage",
         malayalamName: "ഹെറിറ്റേജ്",
-        locationName: "Heritage Village, Alappuzha, 600000",
-        position: [9.4981, 76.3388] as [number, number],
+        locationName: "Heritage Village, Alappuzha, 688001",
+        position: [9.4981, 76.3388],
         description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi rhoncus, arcu at rhoncus ullamcorper, nulla dui enim, eu laoreet felis nisi ut dolor.",
+            "A serene backwater toddy shop in Alappuzha celebrated for freshly tapped morning sweet toddy, pearl spot fish fry, and family-friendly thatched-roof dining.",
         rating: 4.0,
         reviewsCount: 106,
         specialty: "Best Cuisine",
@@ -150,7 +178,7 @@ const MapView = dynamic(() => import("@/features/explore/MapView"), {
     loading: () => (
         <div className="h-full w-full bg-[#fcf9f8] flex items-center justify-center dark:bg-slate-900">
             <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-4 border-[#003e1c] border-t-transparent rounded-full animate-spin"></div>
+                <div className="w-10 h-10 border-4 border-[#003e1c] border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-slate-600 dark:text-slate-400 font-medium tracking-wide animate-pulse">
                     Loading Toddy Shop Map...
                 </p>
@@ -160,23 +188,40 @@ const MapView = dynamic(() => import("@/features/explore/MapView"), {
 });
 
 export default function ExploreClient() {
-    const [toddyShops, setToddyShops] = useState(initialToddyShops);
-    const [searchQuery, setSearchQuery] = useState("");
+    const searchParams = useSearchParams();
+    const initialQuery = searchParams.get("q") ?? "";
+
+    const [toddyShops, setToddyShops] = useState<ExploreShop[]>(initialToddyShops);
+    const [searchQuery, setSearchQuery] = useState(initialQuery);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [activeCenter, setActiveCenter] = useState<[number, number] | null>(
         null,
     );
-    const [activeShopId, setActiveShopId] = useState<number | null>(5);
+    const [activeShopId, setActiveShopId] = useState<number | null>(
+        initialQuery ? null : 5,
+    );
 
     const [isSearching, setIsSearching] = useState(false);
     const [activeTab, setActiveTab] = useState("overview");
-    const [isFavorite, setIsFavorite] = useState(false);
+    const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [shareCopied, setShareCopied] = useState(false);
 
     const [selectedRating, setSelectedRating] = useState<number | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(
         null,
     );
     const [showFilters, setShowFilters] = useState(false);
+
+    const selectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+            if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
+        };
+    }, []);
 
     const filteredShops = toddyShops.filter((shop) => {
         const matchesSearch =
@@ -215,19 +260,57 @@ export default function ExploreClient() {
           )
         : [];
 
-    const handleSelectShop = (shop: (typeof toddyShops)[0]) => {
+    const handleSelectShop = (shop: ExploreShop) => {
         setSearchQuery(shop.name);
         setActiveCenter(shop.position);
         setActiveShopId(shop.id);
         setShowSuggestions(false);
         setActiveTab("overview");
+        setIsDescriptionExpanded(false);
+    };
+
+    const handleToggleFavorite = (shopId: number) => {
+        setFavoriteIds((prev) =>
+            prev.includes(shopId)
+                ? prev.filter((id) => id !== shopId)
+                : [...prev, shopId],
+        );
+    };
+
+    const handleShare = async (shop: ExploreShop) => {
+        const shareUrl =
+            typeof window !== "undefined" ? window.location.href : "";
+        try {
+            if (navigator.share) {
+                await navigator.share({
+                    title: shop.name,
+                    text: `${shop.name} — ${shop.locationName}`,
+                    url: shareUrl,
+                });
+                return;
+            }
+            if (navigator.clipboard) {
+                await navigator.clipboard.writeText(shareUrl);
+                setShareCopied(true);
+                if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
+                shareTimerRef.current = setTimeout(
+                    () => setShareCopied(false),
+                    2000,
+                );
+            }
+        } catch {
+            // User cancelled share dialog or clipboard unavailable
+        }
     };
 
     const handleSearchSubmit = async (queryText: string) => {
-        if (!queryText) return;
+        const trimmed = queryText.trim();
+        if (!trimmed) return;
 
-        const matchedShop = toddyShops.find((shop) =>
-            shop.name.toLowerCase().includes(queryText.toLowerCase()),
+        const matchedShop = toddyShops.find(
+            (shop) =>
+                shop.name.toLowerCase().includes(trimmed.toLowerCase()) ||
+                shop.locationName.toLowerCase().includes(trimmed.toLowerCase()),
         );
 
         if (matchedShop) {
@@ -240,62 +323,69 @@ export default function ExploreClient() {
 
             const response = await fetch(
                 `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
-                    queryText + ", Kerala",
+                    trimmed + ", Kerala",
                 )}&format=json&limit=1`,
             );
 
+            if (!response.ok) {
+                throw new Error(`Geocoding failed with status ${response.status}`);
+            }
+
             const data = await response.json();
 
-            if (data && data.length > 0) {
+            if (Array.isArray(data) && data.length > 0) {
                 const lat = parseFloat(data[0].lat);
                 const lon = parseFloat(data[0].lon);
-                const locationDisplayName = data[0].display_name;
+                if (Number.isNaN(lat) || Number.isNaN(lon)) {
+                    return;
+                }
+
+                const locationDisplayName = String(data[0].display_name || trimmed);
                 const placeName =
-                    locationDisplayName.split(",")[0] || queryText;
+                    locationDisplayName.split(",")[0] || trimmed;
 
                 setActiveCenter([lat, lon]);
 
-                const dynamicShopId = Date.now();
+                const existingShop = toddyShops.find(
+                    (s) =>
+                        Math.abs(s.position[0] - lat) < 0.001 &&
+                        Math.abs(s.position[1] - lon) < 0.001,
+                );
 
-                const dynamicShop = {
-                    id: dynamicShopId,
-                    name: `${placeName} Palace Toddy Shop`,
-                    malayalamName: `${placeName} കള്ള് ഷാപ്പ്`,
-                    locationName: `${placeName}, Kerala, India`,
-                    position: [lat, lon] as [number, number],
-                    description: `Enjoy organic sweet toddy and local spicy delicacies freshly prepared in the heart of ${placeName}.`,
-                    rating: 4.5,
-                    reviewsCount: Math.floor(10 + Math.random() * 200),
-                    specialty: "Local Specialties",
-                    image: "https://flyriatravel.com/wp-content/flyria/images/alp-img-2.jpg",
-                    tsNumber: String(Math.floor(1000 + Math.random() * 8999)),
-                    priceRange: "Moderate",
-                    hours: "09:00 AM - 09:00 PM",
-                    phone:
-                        "+91 9447 " +
-                        Math.floor(100000 + Math.random() * 899999),
-                    website: "toddyfinder.in",
-                    amenities: ["Kids Friendly", "Clean Toilets", "Wi-Fi"],
-                    accessibility: ["Parking", "Wheel Chair Accessible"],
-                };
+                let targetShopId: number;
+                if (existingShop) {
+                    targetShopId = existingShop.id;
+                } else {
+                    targetShopId = Date.now();
+                    const dynamicShop: ExploreShop = {
+                        id: targetShopId,
+                        name: `${placeName} Palace Toddy Shop`,
+                        malayalamName: `${placeName} കള്ള് ഷാപ്പ്`,
+                        locationName: `${placeName}, Kerala, India`,
+                        position: [lat, lon],
+                        description: `Enjoy organic sweet toddy and local spicy delicacies freshly prepared in the heart of ${placeName}.`,
+                        rating: 4.5,
+                        reviewsCount: Math.floor(10 + Math.random() * 200),
+                        specialty: "Local Specialties",
+                        image: "https://flyriatravel.com/wp-content/flyria/images/alp-img-2.jpg",
+                        tsNumber: String(Math.floor(1000 + Math.random() * 8999)),
+                        priceRange: "Moderate",
+                        hours: "09:00 AM - 09:00 PM",
+                        phone:
+                            "+91 9447 " +
+                            Math.floor(100000 + Math.random() * 899999),
+                        website: "toddyfinder.in",
+                        amenities: ["Kids Friendly", "Clean Toilets", "Wi-Fi"],
+                        accessibility: ["Parking", "Wheel Chair Accessible"],
+                    };
+                    setToddyShops((prev) => [...prev, dynamicShop]);
+                }
 
-                setToddyShops((prev) => {
-                    if (
-                        prev.some(
-                            (s) =>
-                                Math.abs(s.position[0] - lat) < 0.001 &&
-                                Math.abs(s.position[1] - lon) < 0.001,
-                        )
-                    ) {
-                        return prev;
-                    }
-
-                    return [...prev, dynamicShop];
-                });
-
-                setTimeout(() => {
-                    setActiveShopId(dynamicShopId);
+                if (selectTimerRef.current) clearTimeout(selectTimerRef.current);
+                selectTimerRef.current = setTimeout(() => {
+                    setActiveShopId(targetShopId);
                     setActiveTab("overview");
+                    setIsDescriptionExpanded(false);
                 }, 500);
             }
         } catch (err) {
@@ -314,6 +404,9 @@ export default function ExploreClient() {
     };
 
     const selectedShop = toddyShops.find((s) => s.id === activeShopId);
+    const isSelectedFavorite = selectedShop
+        ? favoriteIds.includes(selectedShop.id)
+        : false;
 
     return (
         <div className="absolute inset-0 z-0">
@@ -332,6 +425,7 @@ export default function ExploreClient() {
                     }
 
                     setActiveTab("overview");
+                    setIsDescriptionExpanded(false);
                 }}
                 onLocateMe={(coords: [number, number]) => {
                     setActiveCenter(coords);
@@ -377,6 +471,8 @@ export default function ExploreClient() {
 
                             {searchQuery && (
                                 <button
+                                    type="button"
+                                    aria-label="Clear search"
                                     onClick={handleClearSearch}
                                     className="p-1 mr-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
                                 >
@@ -385,6 +481,8 @@ export default function ExploreClient() {
                             )}
 
                             <button
+                                type="button"
+                                aria-label="Toggle filters"
                                 onClick={() => setShowFilters(!showFilters)}
                                 className={`p-2.5 rounded-xl transition-all duration-200 shrink-0 flex items-center justify-center cursor-pointer ${
                                     showFilters
@@ -406,11 +504,12 @@ export default function ExploreClient() {
                                     <div className="bg-white/95 rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-64 overflow-y-auto">
                                         {suggestions.map((shop) => (
                                             <button
+                                                type="button"
                                                 key={shop.id}
                                                 onClick={() =>
                                                     handleSelectShop(shop)
                                                 }
-                                                className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0"
+                                                className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0 cursor-pointer"
                                             >
                                                 <div className="flex items-start gap-2.5">
                                                     <MapPin className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
@@ -440,127 +539,142 @@ export default function ExploreClient() {
                 </div>
 
                 {/* FILTER PANEL */}
-                <div className="absolute top-[160px] left-4 flex-col gap-3 w-full md:w-[320px] pointer-events-auto shrink-0 z-[1001] hidden md:flex">
-                    {(selectedRating || selectedCategory) && (
-                        <div className="flex flex-wrap gap-2">
-                            {selectedRating && (
-                                <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-100 flex items-center gap-1">
-                                    ★ {selectedRating}+ Rating
-                                    <button
-                                        onClick={() => setSelectedRating(null)}
-                                    >
-                                        <X className="w-3.5 h-3.5 hover:text-red-500" />
-                                    </button>
-                                </span>
-                            )}
-
-                            {selectedCategory && (
-                                <span className="text-xs font-semibold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-full border border-amber-100 flex items-center gap-1">
-                                    🔥 {selectedCategory}
-                                    <button
-                                        onClick={() =>
-                                            setSelectedCategory(null)
-                                        }
-                                    >
-                                        <X className="w-3.5 h-3.5 hover:text-red-500" />
-                                    </button>
-                                </span>
-                            )}
-                        </div>
-                    )}
-
-                    {showFilters && (
-                        <div className="p-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-                                    <Sparkles className="w-4 h-4 text-amber-600" />
-                                    Filter Options
-                                </h3>
-
-                                <button
-                                    onClick={() => setShowFilters(false)}
-                                    className="text-slate-400 hover:text-slate-600"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-
-                            <div className="flex flex-col gap-1.5">
-                                <span className="text-xs font-semibold text-slate-500">
-                                    Minimum Rating
-                                </span>
-
-                                <div className="flex gap-2">
-                                    {[4.5, 4.7, 4.8].map((rating) => (
+                {(showFilters || selectedRating || selectedCategory) && (
+                    <div className="absolute top-[160px] left-4 right-4 sm:right-auto flex flex-col gap-3 sm:w-[320px] pointer-events-auto shrink-0 z-[1001]">
+                        {(selectedRating || selectedCategory) && (
+                            <div className="flex flex-wrap gap-2">
+                                {selectedRating && (
+                                    <span className="text-xs font-semibold bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full border border-emerald-100 flex items-center gap-1">
+                                        ★ {selectedRating}+ Rating
                                         <button
-                                            key={rating}
+                                            type="button"
+                                            aria-label="Clear rating filter"
                                             onClick={() =>
-                                                setSelectedRating(
+                                                setSelectedRating(null)
+                                            }
+                                            className="cursor-pointer"
+                                        >
+                                            <X className="w-3.5 h-3.5 hover:text-red-500" />
+                                        </button>
+                                    </span>
+                                )}
+
+                                {selectedCategory && (
+                                    <span className="text-xs font-semibold bg-amber-50 text-amber-800 px-2.5 py-1 rounded-full border border-amber-100 flex items-center gap-1">
+                                        🔥 {selectedCategory}
+                                        <button
+                                            type="button"
+                                            aria-label="Clear category filter"
+                                            onClick={() =>
+                                                setSelectedCategory(null)
+                                            }
+                                            className="cursor-pointer"
+                                        >
+                                            <X className="w-3.5 h-3.5 hover:text-red-500" />
+                                        </button>
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {showFilters && (
+                            <div className="p-4 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                                        <Sparkles className="w-4 h-4 text-amber-600" />
+                                        Filter Options
+                                    </h3>
+
+                                    <button
+                                        type="button"
+                                        aria-label="Close filters"
+                                        onClick={() => setShowFilters(false)}
+                                        className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-xs font-semibold text-slate-500">
+                                        Minimum Rating
+                                    </span>
+
+                                    <div className="flex gap-2">
+                                        {[4.5, 4.7, 4.8].map((rating) => (
+                                            <button
+                                                type="button"
+                                                key={rating}
+                                                onClick={() =>
+                                                    setSelectedRating(
+                                                        selectedRating ===
+                                                            rating
+                                                            ? null
+                                                            : rating,
+                                                    )
+                                                }
+                                                className={`flex-1 text-xs py-1.5 rounded-lg border transition-all font-bold cursor-pointer ${
                                                     selectedRating === rating
-                                                        ? null
-                                                        : rating,
-                                                )
-                                            }
-                                            className={`flex-1 text-xs py-1.5 rounded-lg border transition-all font-bold ${
-                                                selectedRating === rating
-                                                    ? "bg-[#003e1c] border-[#003e1c] text-white"
-                                                    : "border-slate-200 hover:bg-slate-50 text-slate-600"
-                                            }`}
-                                        >
-                                            ★ {rating}+
-                                        </button>
-                                    ))}
+                                                        ? "bg-[#003e1c] border-[#003e1c] text-white"
+                                                        : "border-slate-200 hover:bg-slate-50 text-slate-600"
+                                                }`}
+                                            >
+                                                ★ {rating}+
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="flex flex-col gap-1.5">
-                                <span className="text-xs font-semibold text-slate-500">
-                                    Specialty Category
-                                </span>
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-xs font-semibold text-slate-500">
+                                        Specialty Category
+                                    </span>
 
-                                <div className="flex flex-wrap gap-2">
-                                    {[
-                                        "Beef",
-                                        "Duck",
-                                        "Seafood",
-                                        "Crab",
-                                        "Sweet",
-                                    ].map((category) => (
-                                        <button
-                                            key={category}
-                                            onClick={() =>
-                                                setSelectedCategory(
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            "Beef",
+                                            "Duck",
+                                            "Seafood",
+                                            "Crab",
+                                            "Sweet",
+                                        ].map((category) => (
+                                            <button
+                                                type="button"
+                                                key={category}
+                                                onClick={() =>
+                                                    setSelectedCategory(
+                                                        selectedCategory ===
+                                                            category
+                                                            ? null
+                                                            : category,
+                                                    )
+                                                }
+                                                className={`text-xs px-3 py-1.5 rounded-lg border transition-all font-semibold cursor-pointer ${
                                                     selectedCategory ===
-                                                        category
-                                                        ? null
-                                                        : category,
-                                                )
-                                            }
-                                            className={`text-xs px-3 py-1.5 rounded-lg border transition-all font-semibold ${
-                                                selectedCategory === category
-                                                    ? "bg-[#003e1c] border-[#003e1c] text-white"
-                                                    : "border-slate-200 hover:bg-slate-50 text-slate-600"
-                                            }`}
-                                        >
-                                            {category}
-                                        </button>
-                                    ))}
+                                                    category
+                                                        ? "bg-[#003e1c] border-[#003e1c] text-white"
+                                                        : "border-slate-200 hover:bg-slate-50 text-slate-600"
+                                                }`}
+                                            >
+                                                {category}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* BOTTOM DETAIL CARD */}
-
                 {selectedShop && (
                     <div className="absolute left-0 right-0 top-[170px] bottom-4 z-[1002] pointer-events-none px-3 md:fixed md:top-auto md:bottom-4 md:px-4">
                         <div className="mx-auto w-full max-w-[1440px] h-full md:h-auto pointer-events-auto overflow-y-auto md:overflow-visible rounded-[18px]">
-                            <div className=" grid grid-cols-1 gap-3 md:max-h-[380px] md:overflow-y-auto xl:grid-cols-[0.75fr_1fr] xl:max-h-none xl:overflow-visible ">
+                            <div className="grid grid-cols-1 gap-3 md:max-h-[380px] md:overflow-y-auto xl:grid-cols-[0.75fr_1fr] xl:max-h-none xl:overflow-visible">
                                 {/* LEFT CARD */}
-                                <div className=" bg-white rounded-[18px] sm:rounded-[22px] shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 md:grid-cols-[48%_52%] md:min-h-[230px] xl:h-[270px]">
+                                <div className="bg-white rounded-[18px] sm:rounded-[22px] shadow-2xl border border-slate-100 overflow-hidden grid grid-cols-1 md:grid-cols-[48%_52%] md:min-h-[230px] xl:h-[270px]">
                                     {/* IMAGE */}
-                                    <div className=" relative h-[180px] sm:h-[220px] md:h-full bg-slate-100 overflow-hidden">
+                                    <div className="relative h-[180px] sm:h-[220px] md:h-full bg-slate-100 overflow-hidden">
                                         <Image
                                             src={selectedShop.image}
                                             alt={selectedShop.name}
@@ -598,24 +712,41 @@ export default function ExploreClient() {
 
                                                 <div className="flex items-center gap-2 shrink-0">
                                                     <button
-                                                        onClick={() => {}}
-                                                        className="h-8 px-2.5 rounded-[8px] bg-[#F5FFFC] text-[#002F23] hover:bg-[#EAF8F2] transition-colors flex items-center gap-1 text-[11px] font-medium"
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleShare(
+                                                                selectedShop,
+                                                            )
+                                                        }
+                                                        className="h-8 px-2.5 rounded-[8px] bg-[#F5FFFC] text-[#002F23] hover:bg-[#EAF8F2] transition-colors flex items-center gap-1 text-[11px] font-medium cursor-pointer"
                                                         title="Share"
                                                     >
-                                                        <Share2 className="w-3.5 h-3.5" />
+                                                        {shareCopied ? (
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        ) : (
+                                                            <Share2 className="w-3.5 h-3.5" />
+                                                        )}
                                                         <span className="hidden sm:inline">
-                                                            Share
+                                                            {shareCopied
+                                                                ? "Copied"
+                                                                : "Share"}
                                                         </span>
                                                     </button>
 
                                                     <button
+                                                        type="button"
                                                         onClick={() =>
-                                                            setIsFavorite(
-                                                                !isFavorite,
+                                                            handleToggleFavorite(
+                                                                selectedShop.id,
                                                             )
                                                         }
-                                                        className={`h-8 w-8 rounded-[8px] border flex items-center justify-center transition-all ${
-                                                            isFavorite
+                                                        aria-label={
+                                                            isSelectedFavorite
+                                                                ? "Remove from favorites"
+                                                                : "Add to favorites"
+                                                        }
+                                                        className={`h-8 w-8 rounded-[8px] border flex items-center justify-center transition-all cursor-pointer ${
+                                                            isSelectedFavorite
                                                                 ? "bg-red-50 border-red-200 text-[#FF2D55]"
                                                                 : "bg-white border-red-100 text-[#FF2D55] hover:bg-red-50 hover:border-red-200"
                                                         }`}
@@ -623,7 +754,7 @@ export default function ExploreClient() {
                                                     >
                                                         <Heart
                                                             className={`w-4 h-4 transition-all ${
-                                                                isFavorite
+                                                                isSelectedFavorite
                                                                     ? "fill-[#FF2D55]"
                                                                     : "fill-none"
                                                             }`}
@@ -655,20 +786,57 @@ export default function ExploreClient() {
                                                 ))}
                                             </div>
 
-                                            <p className="text-[12px] text-[#666666] mt-3 leading-normal line-clamp-3">
+                                            <p
+                                                className={`text-[12px] text-[#666666] mt-3 leading-normal ${
+                                                    isDescriptionExpanded
+                                                        ? ""
+                                                        : "line-clamp-3"
+                                                }`}
+                                            >
                                                 {selectedShop.description}{" "}
-                                                <span className="text-[#006A4E] font-semibold cursor-pointer">
-                                                    Read More
-                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setIsDescriptionExpanded(
+                                                            (prev) => !prev,
+                                                        )
+                                                    }
+                                                    className="text-[#006A4E] font-semibold cursor-pointer hover:underline"
+                                                >
+                                                    {isDescriptionExpanded
+                                                        ? "Show Less"
+                                                        : "Read More"}
+                                                </button>
                                             </p>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-2 pt-2">
-                                            <button className="h-9 rounded-[8px] border-[1px] border-[#006A4E] text-[#006A4E] hover:bg-[#F5FFFC] transition-colors text-[11px] font-semibold">
-                                                View Details
-                                            </button>
+                                            {selectedShop.slug ? (
+                                                <Link
+                                                    href={`/shops/${selectedShop.slug}`}
+                                                    className="h-9 rounded-[8px] border-[1px] border-[#006A4E] text-[#006A4E] hover:bg-[#F5FFFC] transition-colors text-[11px] font-semibold flex items-center justify-center"
+                                                >
+                                                    View Details
+                                                </Link>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setActiveTab("overview")
+                                                    }
+                                                    className="h-9 rounded-[8px] border-[1px] border-[#006A4E] text-[#006A4E] hover:bg-[#F5FFFC] transition-colors text-[11px] font-semibold cursor-pointer"
+                                                >
+                                                    View Details
+                                                </button>
+                                            )}
 
-                                            <button className="h-9 rounded-[8px] border-[1px] border-[#006A4E] text-[#006A4E] hover:bg-[#F5FFFC] transition-colors text-[11px] font-semibold">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setActiveTab("reviews")
+                                                }
+                                                className="h-9 rounded-[8px] border-[1px] border-[#006A4E] text-[#006A4E] hover:bg-[#F5FFFC] transition-colors text-[11px] font-semibold cursor-pointer"
+                                            >
                                                 Write a review
                                             </button>
                                         </div>
@@ -676,7 +844,7 @@ export default function ExploreClient() {
                                 </div>
 
                                 {/* RIGHT CARD */}
-                                <div className=" bg-white rounded-[18px] sm:rounded-[22px] shadow-2xl border border-slate-100 overflow-hidden xl:h-[270px]">
+                                <div className="bg-white rounded-[18px] sm:rounded-[22px] shadow-2xl border border-slate-100 overflow-hidden xl:h-[270px]">
                                     {/* TABS */}
                                     <div className="flex items-center justify-between px-4 sm:px-5 border-b border-slate-100 h-11">
                                         <div className="flex items-center gap-5 sm:gap-7 overflow-x-auto no-scrollbar">
@@ -686,11 +854,12 @@ export default function ExploreClient() {
                                                 "recommended",
                                             ].map((tab) => (
                                                 <button
+                                                    type="button"
                                                     key={tab}
                                                     onClick={() =>
                                                         setActiveTab(tab)
                                                     }
-                                                    className={`h-11 whitespace-nowrap text-[12px] sm:text-[13px] font-semibold transition-all border-b-2 ${
+                                                    className={`h-11 whitespace-nowrap text-[12px] sm:text-[13px] font-semibold transition-all border-b-2 cursor-pointer ${
                                                         activeTab === tab
                                                             ? "text-[#111111] border-[#006A4E]"
                                                             : "text-[#777777] border-transparent hover:text-[#111111]"
@@ -707,10 +876,12 @@ export default function ExploreClient() {
                                         </div>
 
                                         <button
+                                            type="button"
+                                            aria-label="Close shop details"
                                             onClick={() =>
                                                 setActiveShopId(null)
                                             }
-                                            className="ml-3 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0"
+                                            className="ml-3 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
                                         >
                                             <X className="w-4 h-4" />
                                         </button>
@@ -861,13 +1032,25 @@ export default function ExploreClient() {
                                                         Customer Reviews
                                                     </h4>
 
-                                                    <button className="text-xs font-semibold text-[#006A4E] hover:underline">
-                                                        See All (
-                                                        {
-                                                            selectedShop.reviewsCount
-                                                        }
-                                                        )
-                                                    </button>
+                                                    {selectedShop.slug ? (
+                                                        <Link
+                                                            href={`/shops/${selectedShop.slug}`}
+                                                            className="text-xs font-semibold text-[#006A4E] hover:underline"
+                                                        >
+                                                            See All (
+                                                            {
+                                                                selectedShop.reviewsCount
+                                                            }
+                                                            )
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-xs font-semibold text-[#006A4E]">
+                                                            {
+                                                                selectedShop.reviewsCount
+                                                            }{" "}
+                                                            Reviews
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -908,7 +1091,9 @@ export default function ExploreClient() {
                                                             <Image
                                                                 src={shop.image}
                                                                 alt={shop.name}
-                                                                className="w-16 h-16 rounded-xl object-cover"
+                                                                width={64}
+                                                                height={64}
+                                                                className="w-16 h-16 rounded-xl object-cover shrink-0"
                                                             />
 
                                                             <div className="flex-1 min-w-0">

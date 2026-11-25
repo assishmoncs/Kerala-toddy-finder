@@ -7,13 +7,13 @@ import Navbar from "@/features/home/components/Navbar";
 const cormorant = Cormorant_Garamond({
     subsets: ["latin"],
     weight: ["400", "500", "600", "700"],
-    variable: "--font-heading",
+    variable: "--font-cormorant",
 });
 
 const nunito = Nunito({
     subsets: ["latin"],
     weight: ["400", "600", "700"],
-    variable: "--font-body",
+    variable: "--font-nunito",
 });
 
 export const metadata: Metadata = {

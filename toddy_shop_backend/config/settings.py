@@ -170,12 +170,12 @@ SIMPLE_JWT = {
 # ---------------------------------------------------------------------------
 # Comma-separated list of allowed origins, e.g.:
 #   CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
-# In development with CORS_ALLOW_ALL_ORIGINS_IN_DEBUG=True, all origins are
-# permitted when DEBUG=True so local development works out of the box.
+# When DEBUG=True and CORS_ALLOWED_ORIGINS is empty, all origins are allowed
+# (without credentials to comply with the CORS specification).
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_ALL_ORIGINS = DEBUG and not CORS_ALLOWED_ORIGINS
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = bool(CORS_ALLOWED_ORIGINS)
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",

@@ -13,9 +13,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { LocateFixed } from "lucide-react";
 
-// Fix default marker issue in Next.js
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-delete (L.Icon.Default.prototype as any)._getIconUrl;
+// Fix default marker icon URL resolution in Next.js without `any`
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 
 L.Icon.Default.mergeOptions({
     iconRetinaUrl:
@@ -41,6 +40,7 @@ interface MapViewProps {
     onMarkerClick: (shopId: number) => void;
     onLocateMe: (coords: [number, number]) => void;
 }
+
 // Custom hook helper to fly to active center smoothly
 function MapViewHandler({
     activeCenter,
@@ -61,20 +61,16 @@ function MapViewHandler({
     return null;
 }
 
-function getGeolocationErrorMessage(error: GeolocationPositionError) {
+function getGeolocationErrorMessage(error: GeolocationPositionError): string {
     switch (error.code) {
         case error.PERMISSION_DENIED:
-            console.log("Location access was denied. Please enable location permission.");
-            break;
+            return "Location access was denied. Please enable location permission.";
         case error.POSITION_UNAVAILABLE:
-            console.log("Your current location could not be determined.");
-            break;
+            return "Your current location could not be determined.";
         case error.TIMEOUT:
-            console.log("Location request timed out. Please try again.");
-            break;
+            return "Location request timed out. Please try again.";
         default:
-            console.log("Something went wrong while fetching your location.");
-            break;
+            return "Something went wrong while fetching your location.";
     }
 }
 
@@ -85,9 +81,12 @@ function LocateMeControl({
     onLocateMe: (coords: [number, number]) => void;
     onUserPositionFound: (coords: [number, number]) => void;
 }) {
+    const [geoError, setGeoError] = useState<string | null>(null);
+
     const handleLocateClick = () => {
+        setGeoError(null);
         if (!navigator.geolocation) {
-            console.log("Geolocation is not supported by this browser.");
+            setGeoError("Geolocation is not supported by this browser.");
             return;
         }
 
@@ -100,25 +99,35 @@ function LocateMeControl({
                 onLocateMe(coords);
             },
             (error) => {
-                getGeolocationErrorMessage(error);
+                const message = getGeolocationErrorMessage(error);
+                setGeoError(message);
+                console.warn(message);
             },
             {
                 enableHighAccuracy: true,
                 timeout: 10000,
                 maximumAge: 0,
-            }
+            },
         );
     };
 
     return (
         <div className="leaflet-bottom leaflet-right z-[1000]">
-            <div className="m-4 pointer-events-auto">
+            <div className="m-4 pointer-events-auto flex flex-col items-end gap-2">
+                {geoError && (
+                    <div
+                        role="alert"
+                        className="max-w-[240px] rounded-lg bg-white/95 px-3 py-2 text-xs text-red-700 shadow-md ring-1 ring-red-200"
+                    >
+                        {geoError}
+                    </div>
+                )}
                 <button
                     type="button"
                     onClick={handleLocateClick}
                     aria-label="Locate me"
                     title="Locate me"
-                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-[0_4px_14px_rgba(0,0,0,0.16)] ring-1 ring-slate-200 transition hover:bg-emerald-50 active:scale-[0.98]"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-700 shadow-[0_4px_14px_rgba(0,0,0,0.16)] ring-1 ring-slate-200 transition hover:bg-emerald-50 active:scale-[0.98] cursor-pointer"
                 >
                     <LocateFixed className="h-5 w-5" strokeWidth={2.2} />
                 </button>
@@ -151,7 +160,9 @@ export default function MapView({
     onLocateMe,
 }: MapViewProps) {
     const markerRefs = useRef<{ [key: number]: L.Marker | null }>({});
-    const [userPosition, setUserPosition] = useState<[number, number] | null>(null);
+    const [userPosition, setUserPosition] = useState<[number, number] | null>(
+        null,
+    );
 
     useEffect(() => {
         if (activeShopId && markerRefs.current[activeShopId]) {

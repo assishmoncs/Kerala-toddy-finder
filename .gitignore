@@ -19,7 +19,7 @@ venv/
 # Django static/media
 staticfiles/
 # specifically ignoring only uncommitted root media attachments, not the media app
-/toddy_shop_backend/media_uploads/
+/toddy_shop_backend/media/
 
 
 # =========================

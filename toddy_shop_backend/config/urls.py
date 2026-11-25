@@ -15,8 +15,8 @@ urlpatterns = [
         "api/v1/",
         include(
             [
-                path("", include("core.urls"), name="core"),
-                path("", include("shops.urls"), name="shops"),
+                path("", include("core.urls")),
+                path("", include("shops.urls")),
             ]
         ),
     ),
@@ -31,7 +31,4 @@ if settings.DEBUG:
             name="swagger-docs",
         ),
     ]
-
-
-if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

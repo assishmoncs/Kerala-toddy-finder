@@ -1,10 +1,10 @@
-.PHONY: help setup build up down restart logs migrate makemigrations shell collectstatic loaddata
+.PHONY: help setup build up down restart logs migrate makemigrations shell collectstatic loaddata test
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Initialize the project for local development (pre-commit, docker build, migrations)
-	uv sync
+	cd toddy_shop_backend && uv sync
 	uv tool run pre-commit install
 	docker compose up -d --build
 	docker compose exec backend uv run python manage.py migrate
@@ -40,3 +40,6 @@ collectstatic: ## Collect static files for production/WhiteNoise
 
 loaddata: ## Load the initial core fixture data
 	docker compose exec backend uv run python manage.py loaddata core/fixtures/initial_data.json
+
+test: ## Run Django test suite inside backend container
+	docker compose exec backend uv run python manage.py test

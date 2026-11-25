@@ -1,7 +1,12 @@
+import logging
+
+from django.conf import settings
+from django.db import connection
 from django.db.models import Avg, Count, Q
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -33,6 +38,7 @@ from .serializers import (
     FoodItemSerializer,
     HygieneTagSerializer,
     LicenseTypeSerializer,
+    LogoutSerializer,
     MediaTypeSerializer,
     PlaceSerializer,
     RatingTypeSerializer,
@@ -45,6 +51,8 @@ from .serializers import (
     UserRoleSerializer,
     UserSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -91,7 +99,7 @@ class TokenRefreshAPIView(TokenRefreshView):
         return APIResponse(data=serializer.validated_data, message="Token refreshed.")
 
 
-@extend_schema(tags=["Authentication"])
+@extend_schema(tags=["Authentication"], request=LogoutSerializer)
 class LogoutView(generics.GenericAPIView):
     """
     Blacklists the supplied refresh token, effectively logging the user out.
@@ -102,6 +110,7 @@ class LogoutView(generics.GenericAPIView):
     Request body: { "refresh": "<refresh_token>" }
     """
 
+    serializer_class = LogoutSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -128,7 +137,6 @@ class LogoutView(generics.GenericAPIView):
 
 @extend_schema(tags=["Authentication"])
 class MeView(generics.RetrieveUpdateAPIView):
-
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -193,7 +201,7 @@ class UserProfileView(generics.GenericAPIView):
         return APIResponse(data=self.get_serializer(profile).data, message="User profile updated.")
 
     def delete(self, request, *args, **kwargs):
-        self.get_object().delete()
+        UserProfile.objects.filter(user=request.user).delete()
         return APIResponse(data=None, message="User profile deleted.")
 
 
@@ -224,7 +232,7 @@ class UserFavoriteView(generics.GenericAPIView):
 
 
 @extend_schema(tags=["User Favorites"])
-class UserFavoriteDetailView(generics.GenericAPIView):
+class UserFavoriteDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, shop_pk, *args, **kwargs):
@@ -251,7 +259,8 @@ class LookupViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
 
     def list(self, request, *args, **kwargs):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
         return APIResponse(data=serializer.data, message="Data retrieved successfully.")
 
     def retrieve(self, request, *args, **kwargs):
@@ -301,15 +310,15 @@ class DistrictViewSet(LookupViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[permissions.AllowAny])
     def stats(self, request):
-        active_filter = Q(places__toddyshops__status__name="Active")
+        active_filter = Q(places__shops__status__name="Active")
         districts = District.objects.annotate(
             shop_count=Count(
-                "places__toddyshops",
+                "places__shops",
                 filter=active_filter,
                 distinct=True,
             ),
             avg_rating=Avg(
-                "places__toddyshops__ratings__score",
+                "places__shops__ratings__score",
                 filter=active_filter,
             ),
         ).order_by("-shop_count", "name")
@@ -319,7 +328,7 @@ class DistrictViewSet(LookupViewSet):
                 "id": d.id,
                 "name": d.name,
                 "shop_count": d.shop_count,
-                "avg_rating": (round(d.avg_rating, 1) if d.avg_rating is not None else None),
+                "avg_rating": round(d.avg_rating, 1) if d.avg_rating is not None else None,
             }
             for d in districts
         ]
@@ -389,7 +398,7 @@ class ReviewCategoryViewSet(LookupViewSet):
 
 
 @extend_schema(tags=["System"])
-class HealthCheckView(generics.GenericAPIView):
+class HealthCheckView(APIView):
     """
     Checks the health of the API and its dependencies.
     """
@@ -397,8 +406,6 @@ class HealthCheckView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, *args, **kwargs):
-        from django.db import connection
-
         health_data = {
             "api": "healthy",
             "database": "unhealthy",
@@ -408,8 +415,10 @@ class HealthCheckView(generics.GenericAPIView):
             connection.ensure_connection()
             health_data["database"] = "healthy"
             return APIResponse(data=health_data, message="API is healthy.")
-        except Exception as e:
-            health_data["database"] = f"error: {str(e)}"
+        except Exception as exc:
+            logger.exception("Health check database error")
+            if settings.DEBUG:
+                health_data["database"] = f"error: {exc}"
             return APIResponse(
                 data=health_data,
                 message="API is unhealthy.",

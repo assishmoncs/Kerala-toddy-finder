@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class ToddyShopResource(resources.ModelResource):
-
     # EXPORT FIELDS
     facilities = fields.Field()
     hygiene_tags = fields.Field()
@@ -55,7 +54,7 @@ class ToddyShopResource(resources.ModelResource):
         return str(val).strip() if val else ""
 
     def _split(self, val):
-        return [v.strip() for v in str(val).split("|") if v.strip()]
+        return [v.strip() for v in str(val).split("|") if v.strip()] if val else []
 
     def _bool(self, val):
         return str(val).lower() in ["true", "1", "yes"]
@@ -64,28 +63,31 @@ class ToddyShopResource(resources.ModelResource):
 
     def get_instance(self, instance_loader, row):
         try:
-            district = District.objects.get(name=self._clean(row["district"]))
-            place = Place.objects.get(name=self._clean(row["place_name"]), district=district)
-            return ToddyShop.objects.get(name=self._clean(row["name"]), place=place)
+            district = District.objects.get(name=self._clean(row.get("district")))
+            place_name = self._clean(row.get("place_name") or row.get("place"))
+            place = Place.objects.get(name=place_name, district=district)
+            return ToddyShop.objects.get(name=self._clean(row.get("name")), place=place)
         except Exception:
             return None
 
     def before_import_row(self, row, **kwargs):
-
         try:
-            owner = User.objects.get(username=self._clean(row["owner"]))
-            district = District.objects.get(name=self._clean(row["district"]))
+            owner = User.objects.get(username=self._clean(row.get("owner")))
+            district = District.objects.get(name=self._clean(row.get("district")))
+            place_name = self._clean(row.get("place_name") or row.get("place"))
+            if not place_name:
+                raise ValidationError("Place name is required.")
 
             place, _ = Place.objects.get_or_create(
-                name=self._clean(row["place_name"]),
+                name=place_name,
                 district=district,
             )
 
-            category = ShopCategory.objects.get(name=self._clean(row["category"]))
-            status = Status.objects.get(name=self._clean(row["status"]))
+            category = ShopCategory.objects.get(name=self._clean(row.get("category")))
+            status = Status.objects.get(name=self._clean(row.get("status")))
 
         except Exception as e:
-            logger.error(f"[FK ERROR] {e}")
+            logger.error("[FK ERROR] %s", e)
             raise ValidationError(str(e)) from e
 
         row["owner"] = owner.id
@@ -112,7 +114,7 @@ class ToddyShopResource(resources.ModelResource):
 
             # LICENSE
             if row.get("license_type"):
-                lt = LicenseType.objects.get(name=self._clean(row["license_type"]))
+                lt = LicenseType.objects.get(name=self._clean(row.get("license_type")))
 
                 ShopLicense.objects.update_or_create(
                     shop=instance,
@@ -126,30 +128,32 @@ class ToddyShopResource(resources.ModelResource):
 
             # FOOD ITEMS
             items = self._split(row.get("food_items"))
-            prices = self._split(row.get("food_item_prices"))
+            prices = [p.strip() for p in str(row.get("food_item_prices") or "").split("|")] if items else []
             availability = self._split(row.get("food_item_availability"))
 
             if items:
                 ShopFoodItem.objects.filter(shop=instance).delete()
 
-                for i in range(len(items)):
-                    food = FoodItem.objects.get(name=items[i])
+                for i, item_name in enumerate(items):
+                    food = FoodItem.objects.filter(name=item_name).first()
+                    if not food:
+                        raise ValidationError(f"FoodItem '{item_name}' does not exist.")
 
+                    raw_price = prices[i] if i < len(prices) else ""
                     ShopFoodItem.objects.create(
                         shop=instance,
                         food_item=food,
-                        price=prices[i] if i < len(prices) else None,
+                        price=raw_price or None,
                         is_available=self._bool(availability[i]) if i < len(availability) else True,
                     )
 
         except Exception as e:
-            logger.error(f"[POST ERROR] {instance.name}: {e}")
+            logger.error("[POST ERROR] %s: %s", instance.name, e)
             raise
 
     @transaction.atomic
     def import_data(self, *args, **kwargs):
-        result = super().import_data(*args, **kwargs)
-        return result
+        return super().import_data(*args, **kwargs)
 
     # EXPORT
 

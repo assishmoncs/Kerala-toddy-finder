@@ -40,7 +40,7 @@ class User(AbstractUser):
 
     @property
     def is_admin(self):
-        return self.role is not None and self.role.name.lower() == "admin"
+        return bool(self.is_superuser or (self.role is not None and self.role.name.lower() == "admin"))
 
     @property
     def is_shop_owner(self):

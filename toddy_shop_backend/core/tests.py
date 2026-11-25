@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 from core.models import (
@@ -104,6 +104,24 @@ class UserDataAPITests(TestCase):
 
         self.assertEqual(response.status_code, 401)
 
+    def test_district_stats_returns_active_shop_counts(self):
+        response = self.client.get("/api/v1/districts/stats/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["data"]), 1)
+        self.assertEqual(response.data["data"][0]["name"], "Ernakulam")
+        self.assertEqual(response.data["data"][0]["shop_count"], 1)
+
+    def test_places_filter_by_district(self):
+        other_district = District.objects.create(name="Kottayam")
+        Place.objects.create(name="Kumarakom", district=other_district, address="Kumarakom")
+
+        response = self.client.get(f"/api/v1/places/?district={self.district.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["data"]), 1)
+        self.assertEqual(response.data["data"][0]["name"], "Kochi")
+
 
 class AuthFlowTests(TestCase):
     """Tests for the login → logout JWT blacklist flow and CORS header presence."""
@@ -175,8 +193,9 @@ class AuthFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 401)
 
+    @override_settings(CORS_ALLOW_ALL_ORIGINS=True)
     def test_cors_allow_all_origins_in_debug(self):
-        """In DEBUG mode (test runner sets DEBUG=True) an arbitrary Origin should
+        """When CORS_ALLOW_ALL_ORIGINS is enabled, an arbitrary Origin should
         get an Access-Control-Allow-Origin response header."""
         response = self.client.get(
             "/api/v1/health/",

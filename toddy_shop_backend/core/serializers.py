@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from shops.models import ToddyShop
@@ -43,7 +45,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True, max_length=15)
     first_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
     last_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
-    preferred_district_name = serializers.CharField(source="preferred_district.name", read_only=True)
+    preferred_district_name = serializers.CharField(source="preferred_district.name", read_only=True, default=None)
     avatar_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -139,6 +141,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             "phone": {"required": False},
         }
 
+    def validate_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+        return value
+
     def create(self, validated_data):
         customer_role = UserRole.objects.filter(name="Customer").first()
         return User.objects.create_user(
@@ -148,6 +157,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             phone=validated_data.get("phone", ""),
             role=customer_role,
         )
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
 
 
 class StatusSerializer(serializers.ModelSerializer):

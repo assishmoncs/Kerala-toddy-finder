@@ -3,15 +3,17 @@
 import { useState, useEffect } from "react";
 import { Menu, Search, User, X } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+
+const NAV_LINKS = [
+    { name: "Home", href: "/" },
+    { name: "Explore Map", href: "/explore" },
+    { name: "Districts", href: "/#districts" },
+    { name: "Community", href: "/community" },
+    { name: "Admin", href: "/admin" },
+];
 
 export default function Navbar() {
-    const navLinks = [
-        { name: "Home", href: "/" },
-        { name: "Explore Map", href: "/explore" },
-        { name: "Districts", href: "/#districts" },
-        { name: "Community", href: "/community" },
-        { name: "About", href: "/about" },
-    ];
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -20,9 +22,21 @@ export default function Navbar() {
             setIsScrolled(window.scrollY > 20);
         };
 
-        window.addEventListener("scroll", handleScroll);
+        handleScroll();
+        window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
+
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setMobileMenuOpen(false);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [mobileMenuOpen]);
 
     return (
         <>
@@ -35,15 +49,20 @@ export default function Navbar() {
             >
                 <nav className="mx-auto flex h-[72px] w-full max-w-[1280px] items-center justify-between px-4 text-white sm:px-6 lg:px-8">
                     <button
+                        type="button"
                         onClick={() => setMobileMenuOpen(true)}
-                        className="flex items-center gap-2 rounded-full border border-white/30 bg-black/20 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm transition hover:bg-black/35 sm:text-sm"
+                        className="flex items-center gap-2 rounded-full border border-white/30 bg-black/20 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm transition hover:bg-black/35 sm:text-sm cursor-pointer"
                         aria-label="Open menu"
                     >
                         <Menu size={16} />
                         <span>Menu</span>
                     </button>
 
-                    <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <Link
+                        href="/"
+                        aria-label="Shaap Home"
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                    >
                         <Image
                             src="/logo.png"
                             alt="Toddy finder logo"
@@ -52,21 +71,23 @@ export default function Navbar() {
                             className="h-7 w-7 object-contain sm:h-8 sm:w-8"
                             priority
                         />
-                    </div>
+                    </Link>
 
                     <div className="flex items-center gap-3">
-                        <button
+                        <Link
+                            href="/explore"
                             className="rounded-full border border-white/30 bg-black/20 p-2 backdrop-blur-sm transition hover:bg-black/35"
-                            aria-label="Search"
+                            aria-label="Search toddy shops"
                         >
                             <Search size={15} />
-                        </button>
-                        <button
+                        </Link>
+                        <Link
+                            href="/admin"
                             className="rounded-full border border-white/30 bg-black/20 p-2 backdrop-blur-sm transition hover:bg-black/35"
-                            aria-label="Profile"
+                            aria-label="Admin panel"
                         >
                             <User size={15} />
-                        </button>
+                        </Link>
                     </div>
                 </nav>
             </header>
@@ -77,6 +98,7 @@ export default function Navbar() {
                         ? "pointer-events-auto opacity-100"
                         : "pointer-events-none opacity-0"
                 }`}
+                aria-hidden={!mobileMenuOpen}
             >
                 <div
                     onClick={() => setMobileMenuOpen(false)}
@@ -88,15 +110,21 @@ export default function Navbar() {
                     }`}
                 >
                     <div className="mb-8 flex items-center justify-between">
-                        <Image
-                            src="/logo.png"
-                            alt="Toddy finder logo"
-                            width={26}
-                            height={26}
-                        />
-                        <button
+                        <Link
+                            href="/"
                             onClick={() => setMobileMenuOpen(false)}
-                            className="rounded-full border border-white/20 p-2"
+                        >
+                            <Image
+                                src="/logo.png"
+                                alt="Toddy finder logo"
+                                width={26}
+                                height={26}
+                            />
+                        </Link>
+                        <button
+                            type="button"
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="rounded-full border border-white/20 p-2 cursor-pointer"
                             aria-label="Close menu"
                         >
                             <X size={18} />
@@ -104,14 +132,15 @@ export default function Navbar() {
                     </div>
 
                     <div className="space-y-2 text-sm font-semibold">
-                        {navLinks.map((link) => (
-                            <a
+                        {NAV_LINKS.map((link) => (
+                            <Link
                                 key={link.name}
                                 href={link.href}
+                                onClick={() => setMobileMenuOpen(false)}
                                 className="block rounded-lg px-3 py-2 hover:bg-white/10"
                             >
                                 {link.name}
-                            </a>
+                            </Link>
                         ))}
                     </div>
                 </aside>

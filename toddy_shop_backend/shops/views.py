@@ -1,7 +1,9 @@
+from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
 
 from core.models import Status
@@ -37,21 +39,40 @@ from .serializers import (
 @extend_schema(tags=["Shops"])
 class ToddyShopViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
-        qs = ToddyShop.objects.select_related("place__district", "category", "status", "owner__role").prefetch_related(
-            "facilities", "hygiene_tags"
+        qs = (
+            ToddyShop.objects.select_related("place__district", "category", "status", "owner__role")
+            .prefetch_related("facilities", "hygiene_tags")
+            .annotate(
+                annotated_avg_rating=Avg("ratings__score"),
+                published_review_count=Count("reviews", filter=Q(reviews__status__name="Published"), distinct=True),
+            )
         )
 
         user = self.request.user
         if not (user.is_authenticated and user.is_admin):
-            qs = qs.filter(status__name="Active")
+            if (
+                user.is_authenticated
+                and user.is_shop_owner
+                and self.action in ("retrieve", "update", "partial_update")
+            ):
+                qs = qs.filter(Q(status__name="Active") | Q(owner=user))
+            else:
+                qs = qs.filter(status__name="Active")
 
         params = self.request.query_params
         if district := params.get("district"):
-            qs = qs.filter(place__district_id=district)
+            if district.isdigit():
+                qs = qs.filter(place__district_id=int(district))
+            else:
+                qs = qs.filter(place__district__name__iexact=district)
         if category := params.get("category"):
-            qs = qs.filter(category_id=category)
+            if not category.isdigit():
+                raise ValidationError({"category": "Category must be a valid numeric ID."})
+            qs = qs.filter(category_id=int(category))
         if place := params.get("place"):
-            qs = qs.filter(place_id=place)
+            if not place.isdigit():
+                raise ValidationError({"place": "Place must be a valid numeric ID."})
+            qs = qs.filter(place_id=int(place))
         if search := params.get("search"):
             qs = qs.filter(name__icontains=search)
 
@@ -105,7 +126,7 @@ class ToddyShopViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         shop = self.get_object()
 
-        if request.user.is_shop_owner and shop.owner != request.user:
+        if request.user.is_shop_owner and not request.user.is_admin and shop.owner != request.user:
             return APIResponse(
                 data=None,
                 message="You can only update your own shops.",
@@ -223,7 +244,7 @@ class ShopFoodItemView(APIView):
         return get_object_or_404(ToddyShop, pk=shop_pk)
 
     def _check_ownership(self, request, shop):
-        if request.user.is_shop_owner and shop.owner != request.user:
+        if request.user.is_shop_owner and not request.user.is_admin and shop.owner != request.user:
             return APIResponse(
                 data=None,
                 message="You can only manage food items for your own shops.",
@@ -247,6 +268,13 @@ class ShopFoodItemView(APIView):
             return denied
         serializer = ShopFoodItemSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if shop.shop_food_items.filter(food_item=serializer.validated_data["food_item"]).exists():
+            return APIResponse(
+                data=None,
+                message="This food item is already listed for this shop.",
+                status=400,
+                is_success=False,
+            )
         serializer.save(shop=shop)
         return APIResponse(data=serializer.data, message="Food item added.", status=201)
 
@@ -259,7 +287,7 @@ class ShopFoodItemDetailView(APIView):
         return get_object_or_404(ShopFoodItem, pk=pk, shop_id=shop_pk)
 
     def _check_ownership(self, request, item):
-        if request.user.is_shop_owner and item.shop.owner != request.user:
+        if request.user.is_shop_owner and not request.user.is_admin and item.shop.owner != request.user:
             return APIResponse(
                 data=None,
                 message="You can only manage food items for your own shops.",
@@ -312,7 +340,7 @@ class ShopMediaView(APIView):
 
     def post(self, request, shop_pk):
         shop = self._get_shop(shop_pk)
-        if request.user.is_shop_owner and shop.owner != request.user:
+        if request.user.is_shop_owner and not request.user.is_admin and shop.owner != request.user:
             return APIResponse(
                 data=None,
                 message="You can only upload media for your own shops.",
@@ -331,7 +359,7 @@ class ShopMediaDetailView(APIView):
 
     def delete(self, request, shop_pk, pk):
         media = get_object_or_404(ShopMedia, pk=pk, shop_id=shop_pk)
-        if request.user.is_shop_owner and media.shop.owner != request.user:
+        if request.user.is_shop_owner and not request.user.is_admin and media.shop.owner != request.user:
             return APIResponse(
                 data=None,
                 message="You can only delete media from your own shops.",
